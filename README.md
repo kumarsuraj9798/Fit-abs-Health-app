@@ -1,4 +1,5 @@
-# 🔥 FitAbs - Fitness Tracking & Workout Analysis Application 🔥
+
+---![FitAbs Banner](https://i.imgur.com/your-fitabs-banner-image.png) # 🔥 FitAbs - Fitness Tracking & Workout Analysis Application 🔥
 
 **Your Ultimate AI-Powered Fitness Companion**
 🏋️‍♀️ Track Workouts | 🧠 Analyze Form | 🚀 Elevate Your Journey
