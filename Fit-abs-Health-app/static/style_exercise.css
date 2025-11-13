@@ -220,7 +220,7 @@ nav a:hover {
 .exercise-tips {
     margin: 20px 0;
     padding: 20px;
-    background-color: #f8f9fa;
+    background-color: #0e73d7;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -251,7 +251,7 @@ nav a:hover {
 
 button {
     background: var(--primary-color);
-    color: #ffffff;
+    color: #edecec;
     border: none;
     padding: 12px 24px;
     border-radius: 8px;

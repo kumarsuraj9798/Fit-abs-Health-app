@@ -48,7 +48,7 @@ def chat():
             return jsonify({'error': 'No message provided'}), 400
 
         # Initialize Gemini model
-        model = genai.GenerativeModel('gemini-1.5-flash')  # Use lighter model
+        model = genai.GenerativeModel('gemini-2.5-flash')  # Use lighter model
         
         # Generate response with simplified prompt
         prompt = f"""You are a fitness assistant. Respond helpfully in markdown with bullet points for lists, **bold** for key terms, and code blocks for routines. Message: {message}"""
