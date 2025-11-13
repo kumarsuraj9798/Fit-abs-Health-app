@@ -144,9 +144,16 @@ def dated_url_for(endpoint, **values):
     return url_for(endpoint, **values)
 
 @app.route('/workouts', methods=['GET', 'POST'])
-def workouts():
+def workouts(exercise = None,sets=None,reps = 1,weight=5):
     if 'user_id' in session:
         user_id = session['user_id']
+        if exercise and sets and reps and weight:
+            new_workout = Workout(user_id=user_id, date=datetime.now(), exercise=exercise, sets=sets, reps=reps, weight=weight)
+            db.session.add(new_workout)
+            db.session.commit()
+
+            flash('Workout logged successfully')
+            return redirect(url_for('workouts'))
 
         if request.method == 'POST':
             exercise = request.form['exercise']
@@ -336,23 +343,70 @@ def start_stream():
     try:
         if camera is None:
             camera = cv2.VideoCapture(0)
-        
-        while True:
-            success, frame = camera.read()
-            if not success:
-                print("Failed to grab frame")
-                break
-            
-            # Process frame with pose detection
-            frame = pose_detector.process_frame(frame)  # Changed from findPose to process_frame
-            
-            # Convert frame to JPEG
-            _, buffer = cv2.imencode('.jpg', frame)
-            frame_bytes = base64.b64encode(buffer).decode('utf-8')
-            
-            # Emit frame to client
-            emit('video-frame', {'frame': frame_bytes})
-            socketio.sleep(0.1)  # Add small delay to prevent overwhelming the connection
+            while True:
+                success, frame = camera.read()
+                if not success:
+                    print("Failed to grab frame")
+                    break
+
+                # Default rep_count to None
+                rep_count = None
+
+                # Process frame and attempt to extract rep count
+                try:
+                    processed = pose_detector.process_frame(frame)
+
+                    # If process_frame returns (frame, rep_count)
+                    if isinstance(processed, tuple) and len(processed) == 2:
+                        frame, rep_count = processed
+
+                    # If process_frame returns dict {'frame':..., 'rep_count':...}
+                    elif isinstance(processed, dict):
+                        frame = processed.get('frame', frame)
+                        rep_count = processed.get('rep_count', None)
+
+                    # If it returns the processed frame only (numpy array)
+                    else:
+                        frame = processed
+
+                    # Fallback: check common attribute names on pose_detector
+                    if rep_count is None:
+                        for attr in ('rep_count', 'reps', 'counter', 'count'):
+                            if hasattr(pose_detector, attr):
+                                try:
+                                    rep_count = int(getattr(pose_detector, attr))
+                                    break
+                                except Exception:
+                                    rep_count = None
+
+                except Exception as e:
+                    # Log processing errors but continue
+                    print("Pose processing error:", repr(e))
+
+                # Encode and emit the video frame
+                try:
+                    _, buffer = cv2.imencode('.jpg', frame)
+                    frame_bytes = base64.b64encode(buffer).decode('utf-8')
+                    emit('video-frame', {'frame': frame_bytes})
+                except Exception as e:
+                    print("Frame encoding error:", repr(e))
+
+                # Debug: log rep_count to server console so you can inspect it
+                try:
+                    print(f"[rep-debug] rep_count (server): {rep_count}")
+                except Exception:
+                    pass
+
+                # Emit rep-count event — if None, emit zero so client still receives updates
+                try:
+                    to_send = 0 if rep_count is None else int(rep_count)
+                    emit('rep-count', {'count': to_send})
+                except Exception as e:
+                    print("Failed to emit rep-count:", repr(e))
+
+                socketio.sleep(0.1)  # small delay
+
+
             
     except Exception as e:
         print(f"Error in video stream: {str(e)}")
@@ -448,7 +502,7 @@ def generate_pdf():
 
 @app.route('/nearest_gym')
 def nearest_gym():
-    api_key = ''
+    api_key = os.getenv('GOOGLE_MAPS_API_KEY')
     return render_template('nearest_gym.html', api_key=api_key)
 
 def init_exercises():
@@ -497,6 +551,62 @@ def init_exercises():
         db.session.add(exercise)
     
     db.session.commit()
+
+@app.route('/save_using_automatic', methods=['POST'])
+def save_using_automatic():
+    """
+    Accepts JSON payload:
+    {
+        "exercise": "Dumbbell Curl",   # required (string)
+        "sets": 1,                     # optional (int) default 1
+        "reps": 12,                    # optional (int) default 0
+        "weight": 5.0                  # optional (float) default None
+    }
+    Saves a Workout for the logged in user and returns JSON.
+    """
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    user_id = session['user_id']
+
+    try:
+        data = request.get_json() or {}
+        exercise_name = data.get('exercise') or data.get('exercise_name')
+        if not exercise_name:
+            return jsonify({'success': False, 'error': 'Missing exercise name'}), 400
+
+        # parse/validate numeric fields
+        try:
+            sets = int(data.get('sets', 1))
+        except (TypeError, ValueError):
+            sets = 1
+
+        try:
+            reps = int(data.get('reps', 0))
+        except (TypeError, ValueError):
+            reps = 0
+
+        weight_raw = data.get('weight', None)
+        if weight_raw is None or weight_raw == '':
+            weight = None
+        else:
+            try:
+                weight = float(weight_raw)
+            except (TypeError, ValueError):
+                weight = None
+
+        # Create and persist the Workout
+        new_workout = Workout(user_id=user_id, date=datetime.now(), exercise=exercise_name, sets=sets, reps=reps, weight=weight)
+        db.session.add(new_workout)
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Workout saved', 'workout': new_workout.to_dict()}), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     with app.app_context():

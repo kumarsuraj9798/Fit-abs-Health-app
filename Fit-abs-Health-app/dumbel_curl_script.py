@@ -21,6 +21,8 @@ class PoseDetector:
         if angle > 180.0:
             angle = 360 - angle
         return angle
+    def expose_counter(self):
+        return self.counter
 
     def process_frame(self, frame):
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

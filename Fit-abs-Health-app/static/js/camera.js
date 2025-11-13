@@ -55,6 +55,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+
+        socket.on('rep-count', (data) => {
+        try {
+            if (!data) return;
+            let count = null;
+            if (typeof data === 'number') {
+                count = data;
+            } else if (data && typeof data.count !== 'undefined') {
+                count = data.count;
+            }
+
+            // Defensive: try to coerce to number
+            if (count !== null) {
+                count = Number(count);
+            }
+
+            // Debug log so you can see incoming rep-count events in browser console
+            console.log('[rep-debug] received rep-count from server ->', count);
+
+            // Only update if numeric and finite
+            if (typeof count === 'number' && isFinite(count)) {
+                if (typeof window.updateReps === 'function') {
+                    window.updateReps(count);
+                } else {
+                    window.currentReps = count;
+                    if (typeof renderCounters === 'function') renderCounters();
+                }
+            } else {
+                // If not numeric, still set to 0 for clarity
+                if (typeof window.updateReps === 'function') {
+                    window.updateReps(0);
+                } else {
+                    window.currentReps = 0;
+                    if (typeof renderCounters === 'function') renderCounters();
+                }
+            }
+        } catch (err) {
+            console.error('Error processing rep-count event:', err);
+        }
+    });
+
+
     // Handle errors
     socket.on('error', (error) => {
         console.error('Socket error:', error);
